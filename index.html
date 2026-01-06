@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sonnet Puzzle</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: #dcd1c8;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            overflow-x: hidden; /* Prevent horizontal scroll */
+        }
+        #canvas {
+            margin-top: 20px;
+            border: 1px solid #d3c6bb;
+            background: #faf8f5;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+            touch-action: pan-y; /* Allow vertical scrolling, prevent other gestures */
+            -webkit-touch-callout: none; /* Disable iOS callout */
+            -webkit-user-select: none; /* Disable text selection */
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="540" height="775"></canvas>
+    <script src="app.js"></script>
+</body>
+</html>
+
