@@ -44,43 +44,51 @@ function isMobile() {
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-// Constants - adjust for mobile (must be defined before functions that use them)
 const SLOT_MARGIN = 5;
 const SLOTS_PER_ROW = 1;
 const SLOT_START_X = 28;
-const SLOT_START_Y = isMobile() ? 100 : 90;
-const BUTTON_Y = isMobile() ? 15 : 20;
-const BUTTON_WIDTH = isMobile() ? 110 : 130;
-const BUTTON_HEIGHT = isMobile() ? 40 : 35;
 const BUTTON_MARGIN = 10;
+const DESKTOP_CANVAS_WIDTH = 540;
+const DESKTOP_CANVAS_HEIGHT = 775;
 
-// Functions to get responsive values
+function getSlotStartY() { return isMobile() ? 100 : 90; }
+function getButtonY() { return isMobile() ? 15 : 20; }
+function getButtonWidth() { return isMobile() ? 110 : 130; }
+function getButtonHeight() { return isMobile() ? 40 : 35; }
+
 function getSlotWidth() {
-    return isMobile() ? canvas.width - 56 : 480;
+    return isMobile() ? canvas.width - 44 : 480;
 }
 
 function getSlotHeight() {
-    return isMobile() ? 60 : 40; // Taller slots on mobile to accommodate wrapped text
+    return isMobile() ? 45 : 40;
 }
 
 function calculateCanvasHeight() {
     if (isMobile()) {
-        return SLOT_START_Y + 14 * (getSlotHeight() + SLOT_MARGIN) + 30;
+        return getSlotStartY() + 14 * (getSlotHeight() + SLOT_MARGIN) + 30;
     }
-    return 775;
+    return DESKTOP_CANVAS_HEIGHT;
 }
 
-if (isMobile()) {
-    const maxWidth = Math.min(window.innerWidth - 40, 500);
-    canvas.width = maxWidth;
-    canvas.height = calculateCanvasHeight();
+function getButtons() {
+    const by = getButtonY(), bw = getButtonWidth(), bh = getButtonHeight();
+    return {
+        checkOrder: { x: SLOT_START_X, y: by, text: 'Check Order', width: bw, height: bh },
+        newSonnet: { x: SLOT_START_X + bw + BUTTON_MARGIN, y: by, text: 'New Sonnet', width: bw, height: bh }
+    };
 }
 
-// Button definitions
-const buttons = {
-    checkOrder: { x: SLOT_START_X, y: BUTTON_Y, text: 'Check Order', width: BUTTON_WIDTH, height: BUTTON_HEIGHT },
-    newSonnet: { x: SLOT_START_X + BUTTON_WIDTH + BUTTON_MARGIN, y: BUTTON_Y, text: 'New Sonnet', width: BUTTON_WIDTH, height: BUTTON_HEIGHT }
-};
+function setCanvasSize() {
+    if (isMobile()) {
+        canvas.width = Math.min(window.innerWidth - 40, 500);
+        canvas.height = calculateCanvasHeight();
+    } else {
+        canvas.width = DESKTOP_CANVAS_WIDTH;
+        canvas.height = DESKTOP_CANVAS_HEIGHT;
+    }
+}
+setCanvasSize();
 
 function hasAtLeastOneLinePlaced() {
     return slots.some(s => s);
@@ -133,7 +141,7 @@ function getSlotPosition(index) {
     const col = index % SLOTS_PER_ROW;
     return {
         x: SLOT_START_X + col * (getSlotWidth() + SLOT_MARGIN),
-        y: SLOT_START_Y + row * (getSlotHeight() + SLOT_MARGIN)
+        y: getSlotStartY() + row * (getSlotHeight() + SLOT_MARGIN)
     };
 }
 
@@ -308,7 +316,7 @@ function render() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
-    for (const [key, button] of Object.entries(buttons)) {
+    for (const [key, button] of Object.entries(getButtons())) {
         const isDisabled = isButtonDisabled(key);
         const radius = 6;
 
@@ -349,7 +357,7 @@ function render() {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     const countText = `Checks: ${checkOrderCount}`;
-    ctx.fillText(countText, SLOT_START_X, BUTTON_Y + BUTTON_HEIGHT + 8);
+    ctx.fillText(countText, SLOT_START_X, getButtonY() + getButtonHeight() + 8);
     
     if (isDragging && draggedLine) {
         ctx.fillStyle = 'rgba(0, 102, 204, 0.8)';
@@ -403,7 +411,7 @@ function handlePointerDown(e) {
         if (e.type === 'touchstart') e.preventDefault();
     }
 
-    for (const [key, button] of Object.entries(buttons)) {
+    for (const [key, button] of Object.entries(getButtons())) {
         if (isPointInButton(x, y, button)) {
             if (!isButtonDisabled(key)) handleButtonClick(key);
             return;
@@ -524,12 +532,8 @@ function checkOrder() {
 }
 
 function handleResize() {
-    if (isMobile()) {
-        const maxWidth = Math.min(window.innerWidth - 40, 500);
-        canvas.width = maxWidth;
-        canvas.height = calculateCanvasHeight();
-        render();
-    }
+    setCanvasSize();
+    render();
 }
 
 window.addEventListener('resize', handleResize);
