@@ -1,49 +1,38 @@
 import { sonnets } from './data.js';
 
 function getRandomSonnet() {
-    // sonnets is an array where each element is a sonnet string with newline-separated lines
-    // Filter out sonnets with less than 14 lines
     const validSonnets = sonnets.filter(sonnet => {
         const lines = sonnet.split('\n').filter(line => line.trim() !== '');
         return lines.length >= 14;
     });
-    
     if (validSonnets.length === 0) {
         console.error('No valid sonnets found');
         return null;
     }
-    
-    // Get random sonnet
-    const randomIndex = Math.floor(Math.random() * validSonnets.length);
-    const selectedSonnet = validSonnets[randomIndex];
-    
-    // Split by newlines, filter out empty lines, and take first 14 lines
-    const lines = selectedSonnet.split('\n')
+    const selectedSonnet = validSonnets[Math.floor(Math.random() * validSonnets.length)];
+    return selectedSonnet.split('\n')
         .map(line => line.trim())
         .filter(line => line !== '')
         .slice(0, 14);
-    
-    return lines;
 }
 
 // Game state
 let currentSonnet = null;
-let currentLineIndex = 0;
-let slots = Array(14).fill(null); // 14 slots (one for each line of a sonnet)
+let slots = Array(14).fill(null);
 let draggedLine = null;
 let draggedSlotIndex = null;
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
-let dragClickOffset = { x: 0, y: 0 }; // Offset between click position and text position
-let hasDragged = false; // Track if user actually dragged (moved mouse)
-let dragStartPos = { x: 0, y: 0 }; // Track where drag started
-let hoveredSlotIndex = -1; // Track which slot is being hovered over while dragging
-let shakingSlots = new Set(); // Set of slot indices that are shaking
+let dragClickOffset = { x: 0, y: 0 };
+let hasDragged = false;
+let dragStartPos = { x: 0, y: 0 };
+let hoveredSlotIndex = -1;
+let shakingSlots = new Set();
 let shakeAnimationFrame = null;
 let shakeStartTime = null;
-let incorrectSlots = new Set(); // Set of slot indices that have incorrect content
-let checkedSlots = new Set(); // Set of slot indices that have been checked
-let checkOrderCount = 0; // Count how many times check order has been clicked for current sonnet
+let incorrectSlots = new Set();
+let checkedSlots = new Set();
+let checkOrderCount = 0;
 
 // Mobile detection
 function isMobile() {
@@ -61,9 +50,9 @@ const SLOTS_PER_ROW = 1;
 const SLOT_START_X = 28;
 const SLOT_START_Y = isMobile() ? 100 : 90;
 const BUTTON_Y = isMobile() ? 15 : 20;
-const BUTTON_WIDTH = isMobile() ? 130 : 150;
+const BUTTON_WIDTH = isMobile() ? 110 : 130;
 const BUTTON_HEIGHT = isMobile() ? 40 : 35;
-const BUTTON_MARGIN = 20;
+const BUTTON_MARGIN = 10;
 
 // Functions to get responsive values
 function getSlotWidth() {
@@ -74,17 +63,13 @@ function getSlotHeight() {
     return isMobile() ? 60 : 40; // Taller slots on mobile to accommodate wrapped text
 }
 
-// Calculate required canvas height
 function calculateCanvasHeight() {
     if (isMobile()) {
-        // Calculate: button area + 14 slots with spacing + padding
-        const slotsArea = SLOT_START_Y + (14 * (getSlotHeight() + SLOT_MARGIN)) + 30; // 14 slots + padding
-        return slotsArea; // Return exact height needed
+        return SLOT_START_Y + 14 * (getSlotHeight() + SLOT_MARGIN) + 30;
     }
-    return 775; // Desktop default
+    return 775;
 }
 
-// Adjust canvas size for mobile
 if (isMobile()) {
     const maxWidth = Math.min(window.innerWidth - 40, 500);
     canvas.width = maxWidth;
@@ -97,71 +82,48 @@ const buttons = {
     newSonnet: { x: SLOT_START_X + BUTTON_WIDTH + BUTTON_MARGIN, y: BUTTON_Y, text: 'New Sonnet', width: BUTTON_WIDTH, height: BUTTON_HEIGHT }
 };
 
-// Check if at least one line has been placed
 function hasAtLeastOneLinePlaced() {
-    for (let i = 0; i < slots.length; i++) {
-        if (slots[i]) {
-            return true;
-        }
-    }
-    return false;
+    return slots.some(s => s);
 }
 
+function isButtonDisabled(key) {
+    return key === 'checkOrder' ? !hasAtLeastOneLinePlaced() : !isOrderCorrect();
+}
 
-// Check if all lines are placed and in the correct order
 function isOrderCorrect() {
-    if (!currentSonnet || currentSonnet.length === 0) return false;
-    
-    // Check if all slots have the correct lines in the correct order
+    if (!currentSonnet?.length) return false;
     for (let i = 0; i < currentSonnet.length; i++) {
-        if (slots[i] !== currentSonnet[i]) {
-            return false;
-        }
+        if (slots[i] !== currentSonnet[i]) return false;
     }
-    
-    // Also check that there are no lines beyond the sonnet length
     for (let i = currentSonnet.length; i < slots.length; i++) {
-        if (slots[i]) {
-            return false;
-        }
+        if (slots[i]) return false;
     }
-    
     return true;
 }
 
 
-// Initialize game
+function shuffleArray(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
 function initGame() {
     currentSonnet = getRandomSonnet();
     if (!currentSonnet) {
         alert('Failed to load sonnets.');
         return;
     }
-    
-    // Shuffle the sonnet lines
-    const shuffledLines = [...currentSonnet];
-    for (let i = shuffledLines.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffledLines[i], shuffledLines[j]] = [shuffledLines[j], shuffledLines[i]];
-    }
-    
-    // Place shuffled lines randomly in slots
+    const shuffledLines = shuffleArray(currentSonnet);
     slots = Array(14).fill(null);
-    const slotIndices = Array.from({ length: 14 }, (_, i) => i);
-    // Shuffle slot indices
-    for (let i = slotIndices.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [slotIndices[i], slotIndices[j]] = [slotIndices[j], slotIndices[i]];
-    }
-    
-    // Place lines in random slots
-    for (let i = 0; i < Math.min(shuffledLines.length, slots.length); i++) {
-        slots[slotIndices[i]] = shuffledLines[i];
-    }
-    
-    incorrectSlots.clear(); // Clear incorrect slots on new game
-    checkedSlots.clear(); // Clear checked slots on new game
-    checkOrderCount = 0; // Reset check order count
+    const slotIndices = shuffleArray(Array.from({ length: 14 }, (_, i) => i));
+    shuffledLines.forEach((line, i) => { slots[slotIndices[i]] = line; });
+    incorrectSlots.clear();
+    checkedSlots.clear();
+    checkOrderCount = 0;
     render();
 }
 
@@ -175,7 +137,13 @@ function getSlotPosition(index) {
     };
 }
 
-// Get slot index from coordinates
+function clearSlotState(...indices) {
+    indices.forEach(i => {
+        incorrectSlots.delete(i);
+        checkedSlots.delete(i);
+    });
+}
+
 function getSlotAt(x, y) {
     for (let i = 0; i < slots.length; i++) {
         const pos = getSlotPosition(i);
@@ -210,18 +178,13 @@ function drawRoundedRect(x, y, width, height, radius) {
 
 
 
-// Render the canvas
 function render() {
-    // Clear canvas with paper-like color
     ctx.fillStyle = '#faf8f5';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw current line
     ctx.fillStyle = '#333';
-    ctx.font = '18px Georgia';
     ctx.textBaseline = 'top';
-    
-    // Draw slots
+
+    // Slots
     for (let i = 0; i < slots.length; i++) {
         const pos = getSlotPosition(i);
         // Apply shake offset if slot is shaking
@@ -257,20 +220,18 @@ function render() {
         ctx.fill();
         ctx.stroke();
         
-        // Draw line number to the left of the slot
+        // Line number (fixed position, excluded from shake)
         const lineNumber = i + 1;
         ctx.fillStyle = '#999';
         ctx.font = isMobile() ? '16px Georgia' : '14px Georgia';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`${lineNumber}`, x - 6, pos.y + getSlotHeight() / 2);
+        ctx.fillText(`${lineNumber}`, pos.x - 6, pos.y + getSlotHeight() / 2);
         ctx.textAlign = 'left';
         
-        // Draw line text if slot is filled
         if (slots[i]) {
             ctx.fillStyle = '#333';
-            const fontSize = isMobile() ? '16px' : '16px'; // Smaller font on mobile for better fit
-            ctx.font = fontSize + ' Georgia';
+            ctx.font = '16px Georgia';
             ctx.textBaseline = 'top'; // Use top baseline for wrapped text
             const text = slots[i];
             const textX = x + 10; // Small padding from left edge
@@ -327,7 +288,6 @@ function render() {
         ctx.textBaseline = 'top';
     }
     
-    // Draw pronounced dotted blue borders on all slots when dragging
     if (isDragging) {
         ctx.strokeStyle = '#2196F3'; // More pronounced, brighter blue
         ctx.lineWidth = 2.5;
@@ -340,37 +300,26 @@ function render() {
             drawRoundedRect(x, pos.y, getSlotWidth(), getSlotHeight(), 6);
             ctx.stroke();
         }
-        ctx.setLineDash([]); // Reset line dash
+        ctx.setLineDash([]);
     }
-    
-    // Draw buttons
+
+    // Buttons
     ctx.font = isMobile() ? '16px Georgia' : '15px Georgia';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
     for (const [key, button] of Object.entries(buttons)) {
-        // Check if button should be disabled
-        let isDisabled = false;
-        if (key === 'checkOrder') {
-            isDisabled = !hasAtLeastOneLinePlaced();
-        } else if (key === 'newSonnet') {
-            isDisabled = !isOrderCorrect();
-        }
-        
+        const isDisabled = isButtonDisabled(key);
         const radius = 6;
-        
-        // Button shadow
+
         if (!isDisabled) {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
             drawRoundedRect(button.x + 1, button.y + 2, button.width, button.height, radius);
             ctx.fill();
         }
-        
-        // Button background with gradient effect
         if (isDisabled) {
             ctx.fillStyle = '#e8e8e8';
         } else {
-            // Create a subtle gradient effect
             const gradient = ctx.createLinearGradient(button.x, button.y, button.x, button.y + button.height);
             if (key === 'checkOrder') {
                 gradient.addColorStop(0, '#5c6bc0');
@@ -383,14 +332,10 @@ function render() {
         }
         drawRoundedRect(button.x, button.y, button.width, button.height, radius);
         ctx.fill();
-        
-        // Button border
         ctx.strokeStyle = isDisabled ? '#d0d0d0' : (key === 'checkOrder' ? '#4a5ba8' : '#43a047');
         ctx.lineWidth = 1.5;
         drawRoundedRect(button.x, button.y, button.width, button.height, radius);
         ctx.stroke();
-        
-        // Button text with subtle shadow for enabled buttons
         if (!isDisabled) {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
             ctx.fillText(button.text, button.x + button.width / 2 + 0.5, button.y + button.height / 2 + 1);
@@ -399,16 +344,14 @@ function render() {
         ctx.fillText(button.text, button.x + button.width / 2, button.y + button.height / 2);
     }
     
-    // Draw check order count to the right of New Sonnet button
     ctx.fillStyle = '#666';
     ctx.font = isMobile() ? '12px Georgia' : '14px Georgia';
     ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
     const countText = `Checks: ${checkOrderCount}`;
-    ctx.fillText(countText, buttons.newSonnet.x + buttons.newSonnet.width + 10, buttons.newSonnet.y + buttons.newSonnet.height / 2);
+    ctx.fillText(countText, SLOT_START_X, BUTTON_Y + BUTTON_HEIGHT + 8);
     
-    // Draw dragged line if dragging
     if (isDragging && draggedLine) {
-        // dragOffset now represents where the text should be drawn (maintaining relative position)
         ctx.fillStyle = 'rgba(0, 102, 204, 0.8)';
         ctx.font = isMobile() ? '18px Georgia' : '16px Georgia';
         const dragRectWidth = isMobile() ? canvas.width - 20 : 300;
@@ -423,12 +366,6 @@ function render() {
     ctx.textAlign = 'left';
 }
 
-// Mouse event handlers
-let mouseDown = false;
-let mouseDownX = 0;
-let mouseDownY = 0;
-
-// Helper function to get coordinates from mouse or touch event
 function getEventCoordinates(e) {
     const rect = canvas.getBoundingClientRect();
     if (e.touches && e.touches.length > 0) {
@@ -436,8 +373,8 @@ function getEventCoordinates(e) {
             x: e.touches[0].clientX - rect.left,
             y: e.touches[0].clientY - rect.top
         };
-    } else if (e.changedTouches && e.changedTouches.length > 0) {
-        // For touchend events, use changedTouches
+    }
+    if (e.changedTouches?.length > 0) {
         return {
             x: e.changedTouches[0].clientX - rect.left,
             y: e.changedTouches[0].clientY - rect.top
@@ -450,48 +387,25 @@ function getEventCoordinates(e) {
 }
 
 function handlePointerDown(e) {
-    const coords = getEventCoordinates(e);
-    const x = coords.x;
-    const y = coords.y;
-    
-    mouseDown = true;
-    mouseDownX = x;
-    mouseDownY = y;
-    
-    // Check if clicking on a filled slot
+    const { x, y } = getEventCoordinates(e);
     const slotIndex = getSlotAt(x, y);
     if (slotIndex !== -1 && slots[slotIndex]) {
         draggedLine = slots[slotIndex];
         draggedSlotIndex = slotIndex;
         isDragging = true;
-        hasDragged = false; // Reset drag flag
-        dragStartPos = { x: x, y: y }; // Store start position
-        // Calculate offset between click position and where the text is actually displayed
+        hasDragged = false;
+        dragStartPos = { x, y };
         const pos = getSlotPosition(slotIndex);
-        const lineNumberWidth = 30; // Space reserved for line number
-        const textX = pos.x + lineNumberWidth + 5; // Text starts after line number
-        const textY = pos.y + getSlotHeight() / 2; // Text is vertically centered
+        const textX = pos.x + 35;
+        const textY = pos.y + getSlotHeight() / 2;
         dragClickOffset = { x: x - textX, y: y - textY };
-        dragOffset = { x: x, y: y };
-        // Only prevent default if we're starting a drag
-        if (e.type === 'touchstart') {
-            e.preventDefault();
-        }
+        dragOffset = { x, y };
+        if (e.type === 'touchstart') e.preventDefault();
     }
-    
-    // Check button clicks
+
     for (const [key, button] of Object.entries(buttons)) {
         if (isPointInButton(x, y, button)) {
-            // Check if button is disabled
-            let isDisabled = false;
-            if (key === 'checkOrder') {
-                isDisabled = !hasAtLeastOneLinePlaced();
-            } else if (key === 'newSonnet') {
-                isDisabled = !isOrderCorrect();
-            }
-            if (!isDisabled) {
-                handleButtonClick(key);
-            }
+            if (!isButtonDisabled(key)) handleButtonClick(key);
             return;
         }
     }
@@ -501,32 +415,14 @@ canvas.addEventListener('mousedown', handlePointerDown);
 canvas.addEventListener('touchstart', handlePointerDown, { passive: false });
 
 function handlePointerMove(e) {
-    if (isDragging) {
-        e.preventDefault(); // Prevent scrolling while dragging
-        const coords = getEventCoordinates(e);
-        const mouseX = coords.x;
-        const mouseY = coords.y;
-        
-        // Check if mouse has moved significantly (more than 5 pixels)
-        const moveDistance = Math.sqrt(
-            Math.pow(mouseX - dragStartPos.x, 2) + 
-            Math.pow(mouseY - dragStartPos.y, 2)
-        );
-        if (moveDistance > 5) {
-            hasDragged = true;
-        }
-        
-        // Check which slot is being hovered over
-        const slotIndex = getSlotAt(mouseX, mouseY);
-        if (hoveredSlotIndex !== slotIndex) {
-            hoveredSlotIndex = slotIndex;
-        }
-        
-        // Maintain relative position by subtracting the click offset
-        dragOffset.x = mouseX - dragClickOffset.x;
-        dragOffset.y = mouseY - dragClickOffset.y;
-        render();
-    }
+    if (!isDragging) return;
+    e.preventDefault();
+    const { x: mx, y: my } = getEventCoordinates(e);
+    if (Math.hypot(mx - dragStartPos.x, my - dragStartPos.y) > 5) hasDragged = true;
+    hoveredSlotIndex = getSlotAt(mx, my);
+    dragOffset.x = mx - dragClickOffset.x;
+    dragOffset.y = my - dragClickOffset.y;
+    render();
 }
 
 canvas.addEventListener('mousemove', handlePointerMove);
@@ -535,60 +431,32 @@ canvas.addEventListener('touchmove', handlePointerMove, { passive: false });
 function handlePointerUp(e) {
     if (isDragging && draggedLine) {
         e.preventDefault();
-        const coords = getEventCoordinates(e);
-        const x = coords.x;
-        const y = coords.y;
-        
+        const { x, y } = getEventCoordinates(e);
         const slotIndex = getSlotAt(x, y);
         
-        if (slotIndex !== -1) {
-            // If dragging from a slot to another slot
-            if (draggedSlotIndex !== null && draggedSlotIndex !== slotIndex) {
-                // If destination slot has content, swap them
-                if (slots[slotIndex]) {
-                    const destinationContent = slots[slotIndex];
-                    slots[slotIndex] = draggedLine;
-                    slots[draggedSlotIndex] = destinationContent;
-                    // Clear incorrect status for both slots since they've been modified
-                    incorrectSlots.delete(slotIndex);
-                    incorrectSlots.delete(draggedSlotIndex);
-                    checkedSlots.delete(slotIndex); // Uncheck modified slots
-                    checkedSlots.delete(draggedSlotIndex);
-                } else {
-                    // Destination is empty, just move the content
-                    slots[draggedSlotIndex] = null;
-                    slots[slotIndex] = draggedLine;
-                    incorrectSlots.delete(draggedSlotIndex);
-                    incorrectSlots.delete(slotIndex);
-                    checkedSlots.delete(slotIndex); // Uncheck modified slot
-                    checkedSlots.delete(draggedSlotIndex); // Uncheck source slot (now empty)
-                }
+        if (slotIndex !== -1 && draggedSlotIndex !== null && draggedSlotIndex !== slotIndex) {
+            if (slots[slotIndex]) {
+                [slots[slotIndex], slots[draggedSlotIndex]] = [draggedLine, slots[slotIndex]];
             } else {
-                // Dropping from same slot (no change needed, but handle for completeness)
-                // This shouldn't happen, but if it does, just update the slot
+                slots[draggedSlotIndex] = null;
                 slots[slotIndex] = draggedLine;
-                incorrectSlots.delete(slotIndex); // Clear incorrect status when slot is modified
-                checkedSlots.delete(slotIndex); // Uncheck this slot since it was modified
             }
-        } else if (draggedSlotIndex !== null) {
-            // Dropped outside a valid slot – leave the line in its original slot (do nothing)
+            clearSlotState(slotIndex, draggedSlotIndex);
         }
+        // Dropped outside any slot: line stays in original slot (no change)
         
         isDragging = false;
-        hoveredSlotIndex = -1; // Clear hover state
+        hoveredSlotIndex = -1;
         draggedLine = null;
         draggedSlotIndex = null;
-        
         render();
     }
-    mouseDown = false;
 }
 
 canvas.addEventListener('mouseup', handlePointerUp);
 canvas.addEventListener('touchend', handlePointerUp);
 canvas.addEventListener('touchcancel', handlePointerUp); // Handle touch cancellation
 
-// Button click handlers
 function handleButtonClick(buttonKey) {
     if (buttonKey === 'checkOrder') {
         checkOrder();
@@ -597,11 +465,10 @@ function handleButtonClick(buttonKey) {
     }
 }
 
-// Get shake offset for animation
 function getShakeOffset() {
     if (!shakeStartTime) return 0;
     const elapsed = Date.now() - shakeStartTime;
-    const duration = 500; // 500ms shake duration
+    const duration = 500;
     if (elapsed >= duration) {
         shakingSlots.clear();
         shakeStartTime = null;
@@ -612,13 +479,11 @@ function getShakeOffset() {
         return 0;
     }
     
-    // Create shake effect: rapid horizontal oscillation that decreases over time
-    const frequency = 20; // oscillations per second
-    const amplitude = 10 * (1 - elapsed / duration); // decreasing amplitude
+    const frequency = 20;
+    const amplitude = 10 * (1 - elapsed / duration);
     return Math.sin(elapsed * frequency * Math.PI / 1000) * amplitude;
 }
 
-// Shake animation loop
 function animateShake() {
     if (shakingSlots.size === 0) {
         shakeAnimationFrame = null;
@@ -628,62 +493,36 @@ function animateShake() {
     shakeAnimationFrame = requestAnimationFrame(animateShake);
 }
 
-// Check if order is correct
 function checkOrder() {
     if (!currentSonnet) return;
-    
-    // Increment check order count
     checkOrderCount++;
-    
-    // Clear previous incorrect slots
     incorrectSlots.clear();
-    
-    // Mark all filled slots as checked
-    for (let i = 0; i < slots.length; i++) {
-        if (slots[i]) {
-            checkedSlots.add(i);
-        }
-    }
-    
-    // Identify incorrect or empty slots (for shaking)
+    slots.forEach((content, i) => { if (content) checkedSlots.add(i); });
+
     const slotsToShake = new Set();
-    
     for (let i = 0; i < slots.length; i++) {
-        const slotContent = slots[i];
-        const expectedLine = i < currentSonnet.length ? currentSonnet[i] : null;
-        
-        // Slot is incorrect if:
-        // 1. It's empty (all empty slots should shake)
-        // 2. It has a line but it's the wrong line (within sonnet length)
-        // 3. It has content but shouldn't (beyond sonnet length)
-        if (!slotContent) {
+        const content = slots[i];
+        const expected = i < currentSonnet.length ? currentSonnet[i] : null;
+        const wrong = !content || content !== expected;
+        if (wrong) {
             slotsToShake.add(i);
-        } else if (slotContent && expectedLine && slotContent !== expectedLine) {
-            slotsToShake.add(i);
-            incorrectSlots.add(i); // Mark as incorrect for red coloring
-        } else if (slotContent && !expectedLine) {
-            // Has content but shouldn't (beyond sonnet length)
-            slotsToShake.add(i);
-            incorrectSlots.add(i); // Mark as incorrect for red coloring
+            if (content) incorrectSlots.add(i);
         }
     }
-    
-    // Start shake animation for incorrect/empty slots
+
     if (slotsToShake.size > 0) {
         shakingSlots = slotsToShake;
         shakeStartTime = Date.now();
         if (!shakeAnimationFrame) {
-            render(); // Initial render
+            render();
             shakeAnimationFrame = requestAnimationFrame(animateShake);
         }
     } else {
-        // If all slots are correct, clear incorrect slots
         incorrectSlots.clear();
         render();
     }
 }
 
-// Handle window resize for mobile orientation changes
 function handleResize() {
     if (isMobile()) {
         const maxWidth = Math.min(window.innerWidth - 40, 500);
@@ -694,10 +533,6 @@ function handleResize() {
 }
 
 window.addEventListener('resize', handleResize);
-window.addEventListener('orientationchange', () => {
-    setTimeout(handleResize, 100); // Small delay for orientation change
-});
-
-// Initialize on load
+window.addEventListener('orientationchange', () => setTimeout(handleResize, 100));
 initGame();
 
