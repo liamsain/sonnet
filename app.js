@@ -41,7 +41,6 @@ let hoveredSlotIndex = -1; // Track which slot is being hovered over while dragg
 let shakingSlots = new Set(); // Set of slot indices that are shaking
 let shakeAnimationFrame = null;
 let shakeStartTime = null;
-let currentLineDropped = false; // Track if current line has been dropped
 let incorrectSlots = new Set(); // Set of slot indices that have incorrect content
 let checkedSlots = new Set(); // Set of slot indices that have been checked
 let checkOrderCount = 0; // Count how many times check order has been clicked for current sonnet
@@ -61,7 +60,6 @@ const SLOT_MARGIN = 5;
 const SLOTS_PER_ROW = 1;
 const SLOT_START_X = 28;
 const SLOT_START_Y = isMobile() ? 100 : 90;
-const CURRENT_LINE_Y = 80;
 const BUTTON_Y = isMobile() ? 15 : 20;
 const BUTTON_WIDTH = isMobile() ? 130 : 150;
 const BUTTON_HEIGHT = isMobile() ? 40 : 35;
@@ -109,26 +107,6 @@ function hasAtLeastOneLinePlaced() {
     return false;
 }
 
-// Check if all lines from the sonnet have been placed
-function areAllLinesPlaced() {
-    if (!currentSonnet || currentSonnet.length === 0) return false;
-    
-    // Get all lines currently in slots
-    const placedLines = new Set();
-    for (let i = 0; i < slots.length; i++) {
-        if (slots[i]) {
-            placedLines.add(slots[i]);
-        }
-    }
-    
-    // Check if all sonnet lines are placed
-    for (let i = 0; i < currentSonnet.length; i++) {
-        if (!placedLines.has(currentSonnet[i])) {
-            return false;
-        }
-    }
-    return true;
-}
 
 // Check if all lines are placed and in the correct order
 function isOrderCorrect() {
@@ -151,35 +129,6 @@ function isOrderCorrect() {
     return true;
 }
 
-// Get a random line index from the sonnet that hasn't been placed in any slot
-function getRandomUnplacedLineIndex() {
-    if (!currentSonnet || currentSonnet.length === 0) return null;
-    
-    // Get all lines currently in slots
-    const placedLines = new Set();
-    for (let i = 0; i < slots.length; i++) {
-        if (slots[i]) {
-            placedLines.add(slots[i]);
-        }
-    }
-    
-    // Get indices of lines that haven't been placed
-    const unplacedIndices = [];
-    for (let i = 0; i < currentSonnet.length; i++) {
-        if (!placedLines.has(currentSonnet[i])) {
-            unplacedIndices.push(i);
-        }
-    }
-    
-    // If all lines are placed, return null (or could return a random one anyway)
-    if (unplacedIndices.length === 0) {
-        return null;
-    }
-    
-    // Return a random unplaced line index
-    const randomIndex = Math.floor(Math.random() * unplacedIndices.length);
-    return unplacedIndices[randomIndex];
-}
 
 // Initialize game
 function initGame() {
@@ -259,28 +208,7 @@ function drawRoundedRect(x, y, width, height, radius) {
     ctx.closePath();
 }
 
-// Render text with word wrapping
-function drawWrappedText(text, x, y, maxWidth, lineHeight) {
-    const words = text.split(' ');
-    let line = '';
-    let currentY = y;
-    
-    for (let i = 0; i < words.length; i++) {
-        const testLine = line + words[i] + ' ';
-        const metrics = ctx.measureText(testLine);
-        const testWidth = metrics.width;
-        
-        if (testWidth > maxWidth && i > 0) {
-            ctx.fillText(line, x, currentY);
-            line = words[i] + ' ';
-            currentY += lineHeight;
-        } else {
-            line = testLine;
-        }
-    }
-    ctx.fillText(line, x, currentY);
-    return currentY;
-}
+
 
 // Render the canvas
 function render() {
@@ -643,10 +571,7 @@ function handlePointerUp(e) {
                 checkedSlots.delete(slotIndex); // Uncheck this slot since it was modified
             }
         } else if (draggedSlotIndex !== null) {
-            // Dropped outside, clear the slot
-            slots[draggedSlotIndex] = null;
-            incorrectSlots.delete(draggedSlotIndex); // Clear incorrect status
-            checkedSlots.delete(draggedSlotIndex); // Uncheck this slot since it was modified
+            // Dropped outside a valid slot – leave the line in its original slot (do nothing)
         }
         
         isDragging = false;
