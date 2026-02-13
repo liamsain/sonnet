@@ -33,6 +33,7 @@ let shakeStartTime = null;
 let incorrectSlots = new Set();
 let checkedSlots = new Set();
 let checkOrderCount = 0;
+let hasCheckedAndPassed = false;
 
 // Mobile detection
 function isMobile() {
@@ -95,7 +96,9 @@ function hasAtLeastOneLinePlaced() {
 }
 
 function isButtonDisabled(key) {
-    return key === 'checkOrder' ? !hasAtLeastOneLinePlaced() : !isOrderCorrect();
+    if (key === 'checkOrder') return !hasAtLeastOneLinePlaced();
+    if (key === 'newSonnet') return !isOrderCorrect() || !hasCheckedAndPassed;
+    return false;
 }
 
 function isOrderCorrect() {
@@ -132,6 +135,7 @@ function initGame() {
     incorrectSlots.clear();
     checkedSlots.clear();
     checkOrderCount = 0;
+    hasCheckedAndPassed = false;
     render();
 }
 
@@ -450,6 +454,7 @@ function handlePointerUp(e) {
                 slots[slotIndex] = draggedLine;
             }
             clearSlotState(slotIndex, draggedSlotIndex);
+            hasCheckedAndPassed = false;
         }
         // Dropped outside any slot: line stays in original slot (no change)
         
@@ -519,6 +524,7 @@ function checkOrder() {
     }
 
     if (slotsToShake.size > 0) {
+        hasCheckedAndPassed = false;
         shakingSlots = slotsToShake;
         shakeStartTime = Date.now();
         if (!shakeAnimationFrame) {
@@ -526,6 +532,7 @@ function checkOrder() {
             shakeAnimationFrame = requestAnimationFrame(animateShake);
         }
     } else {
+        hasCheckedAndPassed = true;
         incorrectSlots.clear();
         render();
     }
